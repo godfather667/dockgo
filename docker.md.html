@@ -1,0 +1,198 @@
+**DOCKER TEST**
+
+# SETUP DOCKER ON LINUX MINT 18
+
+* First import the GPG key
+  * sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 \ --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+ 
+* Next, point the package manager to the official Docker repository
+  * sudo apt-add-repository 'deb https://apt.dockerproject.org/repo ubuntu-xenial main'
+ 
+* Update the package database
+  * sudo apt update
+
+* Installing both packages will eliminate an unmet dependencies error when you try to install the linux-image-extra-virtual by itself
+  * sudo apt install linux-image-generic linux-image-extra-virtual
+ 
+* Reboot the system so it would be running on the newly installed kernel image
+  * sudo reboot
+ 
+* Install Docker
+  * sudo apt install docker-engine
+ 
+* Run a Docker container
+  * This container is just a test container, and it will run and exit
+  * sudo docker run hello-world
+ 
+* How to search for Docker images
+  * sudo docker search "linux mint"
+  * It Worked!
+ 
+## Finding Docker Images
+
+* The output should be of this sort 
+  * NAME                                 DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+  * Ubuntu                               Ubuntu is a Debian-based Linux operating s...   5185      [OK]       
+  * oraclelinux                          Oracle Linux is an open-source operating s...   262       [OK]       
+* Only use images with {OK} in OFFICIAL Column -- Others are possibly unsafe
+
+## Run a Ubuntu Image
+* Run a Docker container using the official Ubuntu image
+  * sudo docker run -it ubuntu bash
+  * It Worked
+  * Enter exit to leave the image
+ 
+* List images available 
+  * docker images
+  * docker rmi {image-name} to delete image
+  * docker rmi -f {image-name}  to __force__ delete of image
+
+## Installing Applications inside Docker Image
+* Have to include _apt-get -y update &&_ before each command if have problems:
+  * ``apt-get -y update && apt-get install -y {Target Command}``
+* Command Sequence to install nginx in Docker Image
+  * ``apt-get -y update && apt-get install -y curl``
+  * ``apt-get -y update && apt-get install -y nginx``
+  * ``docker ps -l``
+  * ``docker commit 5976e4ae287c ubuntu-nginx``  //Commit Changes
+  * ``docker images``  // Shows current images
+  * ``docker ps  -a | head -3``  // Shows previous images (-10 show more)
+  * ``docker run ubuntu-nginx whereis nginx``  // Is Nginx Service working?
+    * Result: ``nginx: /usr/sbin/nginx /usr/lib/nginx /etc/nginx /usr/share/nginx``
+* To remove a container, use _docker ps -a_ to get ID and then user __rm__
+  * ``docker ps -a``
+  * ``sudo docker rm 36488523933a`` 
+
+## How to run Nginx inside a Docker Container
+* The first thing that you need to do is to create a new container, map host-container ports and enter container shell by issuing the below command:
+  * ``docker run -it -p 81:80 ubuntu-nginx /bin/bash``
+  * ``nginx &``
+  * Detach for the Nginx Daemon with Ctrl-p and Ctrl-q key commands
+  * ``docker ps`` //to check the state of your running container
+  * ``netstat -tlpn`` //view host network sockets
+## Connecting to Nginx Server
+* Open a browser and connect to YOUR IP address
+  * Find IP: ``ip addr show``
+  * It is the _inet_ Address after the _inet_ Address for the loopback (127.0.0.1)
+  * You should get a __Welcome to nginx__ Page if all is working!
+## Killing Nginx Server and Running Images
+* ``docker ps``  // get id or name
+* ``docker stop {id}``
+* ``docket ps``
+## Remove Images from Repository
+* ``docker images``
+* ``docker rmi -f {Image Name or Image ID}
+## Build a Docker Image
+* Find your IP address in case it is needed later
+  * Find IP: ``ip addr show``
+  * It is the _inet_ Address after the _inet_ Address for the loopback (127.0.0.1)
+
+* Start with go file dockgo.go in my go source directory
+  *************************************************************
+  * package main                                              *
+  *                                                           *
+  * import (                                                  *
+  *    "fmt"                                                  *
+  *    "io/ioutil"                                            *
+  *    "net/http"                                             *
+  *    "os"                                                   *
+  * )                                                         *
+  *                                                           *
+  * func main() {                                             *
+  *    resp, err := http.Get("https://google.com")            *
+  *    check(err)                                             *
+  *    body, err := ioutil.ReadAll(resp.Body)                 *
+  *    check(err)                                             *
+  *    fmt.Println(len(body))                                 *
+  * }                                                         *
+  *                                                           *
+  * func check(err error) {                                   *
+  *    if err != nil {                                        *
+  *        fmt.Println(err)                                   *
+  *        os.Exit(1)                                         *
+  *    }                                                      *
+  * }                                                         *
+  *************************************************************
+
+* In __dockgo__ Directory in addition to _dockgo.go_ add _Dockerfile-scratch_
+***************************************************************  
+* FROM scratch                                                *
+* ADD ca-certificates.crt /etc/ssl/certs/                     *
+* ADD dockgo /                                                *
+* CMD ["/dockgo"]                                             *
+*************************************************************** 
+
+* Copy _ca-certificates.crt_ from __/etc/ssl/certs/__ to __dockgo__ directory
+  * This is necessary for installing the SSL certificate into the docker image 
+  
+* Build Go Image with static libraries:
+  * ``CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dockgo .``
+
+* The __dockgo__ directory should look as follows:
+*****************************************************************  
+*  ca-certificates.crt  Dockerfile.scratch  dockgo dockgo.go    *
+***************************************************************** 
+
+* Build Docker Image:
+  * ``docker build -t example-scratch -f Dockerfile.scratch .``
+
+* Run Image:
+  * ``docker run -it -p 8080:8080 example-scratch``
+
+## Miscellaneous Commands
+* Cleaning up old images (Generally with Tag {none}):
+  * ``docker rmi -f $(docker images -f dangling=true -q)``
+
+* Moving _docker image_ to new host -- Make __image tar file__:
+  * ``docker save -o [path for tar file] [image name]``
+
+* Move __image tar file__ to new host and load into _docker repository_:
+  * ``docker load -i [path to image tar file]``
+
+
+## Docker Communication and Running __dockdb.go__ Database
+* To check IPTABLES on host:
+  * sudo iptables -L -n
+  * Results Below:
+*********************************************************************
+*  * Chain INPUT (policy ACCEPT)                                    *
+*  target     prot opt source               destination             *
+*                                                                   *
+*  Chain FORWARD (policy DROP)                                      *
+*  target     prot opt source               destination             *
+*  DOCKER-ISOLATION  all  --  0.0.0.0/0            0.0.0.0/0        *   
+*  ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0               *
+*  DOCKER     all  --  0.0.0.0/0            0.0.0.0/0               *
+*  ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0               *
+*  ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0               *
+*                                                                   *
+*  Chain OUTPUT (policy ACCEPT)                                     *
+*  target     prot opt source               destination             *
+*                                                                   *
+*  Chain DOCKER (1 references)                                      *
+*  target     prot opt source               destination             *
+*                                                                   *
+*  Chain DOCKER-ISOLATION (1 references)                            *
+*  target     prot opt source               destination             *
+*  RETURN     all  --  0.0.0.0/0            0.0.0.0/0               *
+*********************************************************************
+
+* To allow communication with docker:  sudo iptables -P FORWARD ACCEPT
+  * The _Chain FORWARD_ above will be set to __(policy ACCEPT)__
+
+* The commands to build _dockdb.go are as follows in __/src/dockdb__
+  * ``CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dockdb .
+  * docker build -t dockdb -f Dockerfile.scratch .                   
+  * docker run -it -p 8080:8080 dockdb``                                
+
+* Open a browser __localhost:8080/help/__ for Instructions
+
+
+
+
+
+
+
+
+
+<style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js"></script><script src="https://casual-effects.com/markdeep/latest/markdeep.min.js"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
